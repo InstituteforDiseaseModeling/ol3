@@ -16,9 +16,8 @@ goog.require('ol.layer.Tile');
 goog.require('ol.math');
 goog.require('ol.renderer.webgl.Layer');
 goog.require('ol.renderer.webgl.tilelayer.shader');
-goog.require('ol.source.Tile');
-goog.require('ol.structs.Buffer');
 goog.require('ol.tilecoord');
+goog.require('ol.webgl.Buffer');
 
 
 
@@ -53,9 +52,9 @@ ol.renderer.webgl.TileLayer = function(mapRenderer, tileLayer) {
 
   /**
    * @private
-   * @type {ol.structs.Buffer}
+   * @type {ol.webgl.Buffer}
    */
-  this.renderArrayBuffer_ = new ol.structs.Buffer([
+  this.renderArrayBuffer_ = new ol.webgl.Buffer([
     0, 0, 0, 1,
     1, 0, 1, 1,
     0, 1, 0, 0,
@@ -108,11 +107,10 @@ ol.renderer.webgl.TileLayer.prototype.handleWebGLContextLost = function() {
  * @inheritDoc
  */
 ol.renderer.webgl.TileLayer.prototype.prepareFrame =
-    function(frameState, layerState) {
+    function(frameState, layerState, context) {
 
   var mapRenderer = this.getWebGLMapRenderer();
-  var context = mapRenderer.getContext();
-  var gl = mapRenderer.getGL();
+  var gl = context.getGL();
 
   var viewState = frameState.viewState;
   var projection = viewState.projection;
@@ -120,7 +118,6 @@ ol.renderer.webgl.TileLayer.prototype.prepareFrame =
   var tileLayer = this.getLayer();
   goog.asserts.assertInstanceof(tileLayer, ol.layer.Tile);
   var tileSource = tileLayer.getSource();
-  goog.asserts.assertInstanceof(tileSource, ol.source.Tile);
   var tileGrid = tileSource.getTileGridForProjection(projection);
   var z = tileGrid.getZForResolution(viewState.resolution);
   var tileResolution = tileGrid.getResolution(z);
@@ -201,10 +198,6 @@ ol.renderer.webgl.TileLayer.prototype.prepareFrame =
         tilesToDrawByZ, getTileIfLoaded);
 
     var useInterimTilesOnError = tileLayer.getUseInterimTilesOnError();
-    if (!goog.isDef(useInterimTilesOnError)) {
-      useInterimTilesOnError = true;
-    }
-
     var allTilesLoaded = true;
     var tmpExtent = ol.extent.createEmpty();
     var tmpTileRange = new ol.TileRange(0, 0, 0, 0);

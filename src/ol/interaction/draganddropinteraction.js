@@ -29,7 +29,9 @@ ol.interaction.DragAndDrop = function(opt_options) {
 
   var options = goog.isDef(opt_options) ? opt_options : {};
 
-  goog.base(this);
+  goog.base(this, {
+    handleEvent: ol.interaction.DragAndDrop.handleEvent
+  });
 
   /**
    * @private
@@ -42,8 +44,8 @@ ol.interaction.DragAndDrop = function(opt_options) {
    * @private
    * @type {ol.proj.Projection}
    */
-  this.reprojectTo_ = goog.isDef(options.reprojectTo) ?
-      ol.proj.get(options.reprojectTo) : null;
+  this.projection_ = goog.isDef(options.projection) ?
+      ol.proj.get(options.projection) : null;
 
   /**
    * @private
@@ -97,10 +99,10 @@ ol.interaction.DragAndDrop.prototype.handleDrop_ = function(event) {
 ol.interaction.DragAndDrop.prototype.handleResult_ = function(file, result) {
   var map = this.getMap();
   goog.asserts.assert(!goog.isNull(map));
-  var projection = this.reprojectTo_;
+  var projection = this.projection_;
   if (goog.isNull(projection)) {
     var view = map.getView();
-    goog.asserts.assert(goog.isDef(view));
+    goog.asserts.assert(!goog.isNull(view));
     projection = view.getProjection();
     goog.asserts.assert(goog.isDef(projection));
   }
@@ -133,10 +135,12 @@ ol.interaction.DragAndDrop.prototype.handleResult_ = function(file, result) {
 
 
 /**
- * @inheritDoc
+ * @param {ol.MapBrowserEvent} mapBrowserEvent Map browser event.
+ * @return {boolean} `false` to stop event propagation.
+ * @this {ol.interaction.DragAndDrop}
+ * @api
  */
-ol.interaction.DragAndDrop.prototype.handleMapBrowserEvent =
-    goog.functions.TRUE;
+ol.interaction.DragAndDrop.handleEvent = goog.functions.TRUE;
 
 
 /**

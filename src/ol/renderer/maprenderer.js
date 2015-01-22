@@ -125,22 +125,19 @@ ol.renderer.Map.prototype.forEachFeatureAtPixel =
     function(coordinate, frameState, callback, thisArg,
         layerFilter, thisArg2) {
   var result;
-  var extent = frameState.extent;
   var viewState = frameState.viewState;
   var viewResolution = viewState.resolution;
   var viewRotation = viewState.rotation;
   if (!goog.isNull(this.replayGroup)) {
     /** @type {Object.<string, boolean>} */
     var features = {};
-    result = this.replayGroup.forEachGeometryAtPixel(extent, viewResolution,
+    result = this.replayGroup.forEachGeometryAtPixel(viewResolution,
         viewRotation, coordinate, {},
         /**
-         * @param {ol.geom.Geometry} geometry Geometry.
-         * @param {Object} data Data.
+         * @param {ol.Feature} feature Feature.
          * @return {?} Callback result.
          */
-        function(geometry, data) {
-          var feature = /** @type {ol.Feature} */ (data);
+        function(feature) {
           goog.asserts.assert(goog.isDef(feature));
           var key = goog.getUid(feature).toString();
           if (!(key in features)) {
@@ -169,6 +166,26 @@ ol.renderer.Map.prototype.forEachFeatureAtPixel =
     }
   }
   return undefined;
+};
+
+
+/**
+ * @param {ol.Coordinate} coordinate Coordinate.
+ * @param {olx.FrameState} frameState FrameState.
+ * @param {function(this: U, ol.layer.Layer): boolean} layerFilter Layer filter
+ *     function, only layers which are visible and for which this function
+ *     returns `true` will be tested for features.  By default, all visible
+ *     layers will be tested.
+ * @param {U} thisArg Value to use as `this` when executing `layerFilter`.
+ * @return {boolean} Is there a feature at the given pixel?
+ * @template U
+ */
+ol.renderer.Map.prototype.hasFeatureAtPixel =
+    function(coordinate, frameState, layerFilter, thisArg) {
+  var hasFeature = this.forEachFeatureAtPixel(
+      coordinate, frameState, goog.functions.TRUE, this, layerFilter, thisArg);
+
+  return goog.isDef(hasFeature);
 };
 
 

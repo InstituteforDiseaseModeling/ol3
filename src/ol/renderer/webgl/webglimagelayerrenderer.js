@@ -1,19 +1,17 @@
 goog.provide('ol.renderer.webgl.ImageLayer');
 
 goog.require('goog.asserts');
-goog.require('goog.events');
-goog.require('goog.events.EventType');
 goog.require('goog.vec.Mat4');
 goog.require('goog.webgl');
 goog.require('ol.Coordinate');
 goog.require('ol.Extent');
 goog.require('ol.ImageBase');
-goog.require('ol.ImageState');
 goog.require('ol.ViewHint');
 goog.require('ol.extent');
 goog.require('ol.layer.Image');
+goog.require('ol.proj');
 goog.require('ol.renderer.webgl.Layer');
-goog.require('ol.source.Image');
+goog.require('ol.webgl.Context');
 
 
 
@@ -49,27 +47,11 @@ ol.renderer.webgl.ImageLayer.prototype.createTexture_ = function(image) {
   // http://www.khronos.org/webgl/wiki/WebGL_and_OpenGL_Differences#Non-Power_of_Two_Texture_Support
   // http://learningwebgl.com/blog/?p=2101
 
-  var imageElement = image.getImageElement();
+  var imageElement = image.getImage();
   var gl = this.getWebGLMapRenderer().getGL();
 
-  var texture = gl.createTexture();
-
-  gl.bindTexture(goog.webgl.TEXTURE_2D, texture);
-  gl.texImage2D(goog.webgl.TEXTURE_2D, 0, goog.webgl.RGBA,
-      goog.webgl.RGBA, goog.webgl.UNSIGNED_BYTE, imageElement);
-
-  gl.texParameteri(
-      goog.webgl.TEXTURE_2D, goog.webgl.TEXTURE_WRAP_S,
-      goog.webgl.CLAMP_TO_EDGE);
-  gl.texParameteri(
-      goog.webgl.TEXTURE_2D, goog.webgl.TEXTURE_WRAP_T,
-      goog.webgl.CLAMP_TO_EDGE);
-  gl.texParameteri(
-      goog.webgl.TEXTURE_2D, goog.webgl.TEXTURE_MIN_FILTER, goog.webgl.LINEAR);
-  gl.texParameteri(
-      goog.webgl.TEXTURE_2D, goog.webgl.TEXTURE_MAG_FILTER, goog.webgl.LINEAR);
-
-  return texture;
+  return ol.webgl.Context.createTexture(
+      gl, imageElement, goog.webgl.CLAMP_TO_EDGE, goog.webgl.CLAMP_TO_EDGE);
 };
 
 
@@ -80,13 +62,11 @@ ol.renderer.webgl.ImageLayer.prototype.forEachFeatureAtPixel =
     function(coordinate, frameState, callback, thisArg) {
   var layer = this.getLayer();
   var source = layer.getSource();
-  goog.asserts.assertInstanceof(source, ol.source.Image);
-  var extent = frameState.extent;
   var resolution = frameState.viewState.resolution;
   var rotation = frameState.viewState.rotation;
   var skippedFeatureUids = frameState.skippedFeatureUids;
   return source.forEachFeatureAtPixel(
-      extent, resolution, rotation, coordinate, skippedFeatureUids,
+      resolution, rotation, coordinate, skippedFeatureUids,
 
       /**
        * @param {ol.Feature} feature Feature.
@@ -102,7 +82,7 @@ ol.renderer.webgl.ImageLayer.prototype.forEachFeatureAtPixel =
  * @inheritDoc
  */
 ol.renderer.webgl.ImageLayer.prototype.prepareFrame =
-    function(frameState, layerState) {
+    function(frameState, layerState, context) {
 
   var gl = this.getWebGLMapRenderer().getGL();
 
@@ -116,7 +96,6 @@ ol.renderer.webgl.ImageLayer.prototype.prepareFrame =
   var imageLayer = this.getLayer();
   goog.asserts.assertInstanceof(imageLayer, ol.layer.Image);
   var imageSource = imageLayer.getSource();
-  goog.asserts.assertInstanceof(imageSource, ol.source.Image);
 
   var hints = frameState.viewHints;
 
@@ -127,15 +106,17 @@ ol.renderer.webgl.ImageLayer.prototype.prepareFrame =
   }
   if (!hints[ol.ViewHint.ANIMATING] && !hints[ol.ViewHint.INTERACTING] &&
       !ol.extent.isEmpty(renderedExtent)) {
+    var projection = viewState.projection;
+    var sourceProjection = imageSource.getProjection();
+    if (!goog.isNull(sourceProjection)) {
+      goog.asserts.assert(ol.proj.equivalent(projection, sourceProjection));
+      projection = sourceProjection;
+    }
     var image_ = imageSource.getImage(renderedExtent, viewResolution,
-        frameState.pixelRatio, viewState.projection);
+        frameState.pixelRatio, projection);
     if (!goog.isNull(image_)) {
-      var imageState = image_.getState();
-      if (imageState == ol.ImageState.IDLE) {
-        goog.events.listenOnce(image_, goog.events.EventType.CHANGE,
-            this.handleImageChange, false, this);
-        image_.load();
-      } else if (imageState == ol.ImageState.LOADED) {
+      var loaded = this.loadImage(image_);
+      if (loaded) {
         image = image_;
         texture = this.createTexture_(image_);
         if (!goog.isNull(this.texture)) {

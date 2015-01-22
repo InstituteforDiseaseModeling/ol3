@@ -63,7 +63,7 @@ map.on('click', function(evt) {
 
 var exportKMLElement = document.getElementById('export-kml');
 if ('download' in exportKMLElement) {
-  var vectorSource = /** @type {ol.source.Vector} */ (vector.getSource());
+  var vectorSource = vector.getSource();
   exportKMLElement.addEventListener('click', function(e) {
     if (!exportKMLElement.href) {
       var features = [];
@@ -73,9 +73,7 @@ if ('download' in exportKMLElement) {
         clone.getGeometry().transform(projection, 'EPSG:4326');
         features.push(clone);
       });
-      var node = new ol.format.KML().writeFeatures(features);
-      var string = new XMLSerializer().serializeToString(
-          /** @type {Node} */ (node));
+      var string = new ol.format.KML().writeFeatures(features);
       var base64 = exampleNS.strToBase64(string);
       exportKMLElement.href =
           'data:application/vnd.google-earth.kml+xml;base64,' + base64;

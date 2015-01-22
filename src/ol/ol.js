@@ -73,7 +73,7 @@ ol.DRAGZOOM_ANIMATION_DURATION = 200;
 
 
 /**
- * @define {number} Hysterisis pixels.
+ * @define {number} Hysteresis pixels.
  */
 ol.DRAG_BOX_HYSTERESIS_PIXELS = 8;
 
@@ -146,8 +146,17 @@ ol.ENABLE_WEBGL = true;
 
 /**
  * @define {boolean} Support legacy IE (7-8).  Default is `false`.
+ *     If set to `true`, `goog.array.ASSUME_NATIVE_FUNCTIONS` must be set
+ *     to `false` because legacy IE do not support ECMAScript 5 array functions.
  */
 ol.LEGACY_IE_SUPPORT = false;
+
+
+/**
+ * @define {number} The size in pixels of the first atlas image. Default is
+ * `256`.
+ */
+ol.INITIAL_ATLAS_SIZE = 256;
 
 
 /**
@@ -174,6 +183,14 @@ ol.KEYBOARD_PAN_DURATION = 100;
 
 
 /**
+ * @define {number} The maximum size in pixels of atlas images. Default is
+ * `-1`, meaning it is not used (and `ol.ol.WEBGL_MAX_TEXTURE_SIZE` is
+ * used instead).
+ */
+ol.MAX_ATLAS_SIZE = -1;
+
+
+/**
  * @define {number} Maximum mouse wheel delta.
  */
 ol.MOUSEWHEELZOOM_MAXDELTA = 1;
@@ -183,6 +200,20 @@ ol.MOUSEWHEELZOOM_MAXDELTA = 1;
  * @define {number} Mouse wheel timeout duration.
  */
 ol.MOUSEWHEELZOOM_TIMEOUT_DURATION = 80;
+
+
+/**
+ * @define {number} Maximum width and/or height extent ratio that determines
+ * when the overview map should be zoomed out.
+ */
+ol.OVERVIEWMAP_MAX_RATIO = 0.75;
+
+
+/**
+ * @define {number} Minimum width and/or height extent ratio that determines
+ * when the overview map should be zoomed in.
+ */
+ol.OVERVIEWMAP_MIN_RATIO = 0.1;
 
 
 /**
@@ -201,6 +232,24 @@ ol.SIMPLIFY_TOLERANCE = 0.5;
  * @define {number} Texture cache high water mark.
  */
 ol.WEBGL_TEXTURE_CACHE_HIGH_WATER_MARK = 1024;
+
+
+/**
+ * The maximum supported WebGL texture size in pixels. If WebGL is not
+ * supported, the value is set to `undefined`.
+ * @const
+ * @type {number|undefined}
+ * @api
+ */
+ol.WEBGL_MAX_TEXTURE_SIZE; // value is set in `ol.has`
+
+
+/**
+ * List of supported WebGL extensions.
+ * @const
+ * @type {Array.<string>}
+ */
+ol.WEBGL_EXTENSIONS; // value is set in `ol.has`
 
 
 /**

@@ -35,7 +35,16 @@ ol.layer.Vector = function(opt_options) {
   var baseOptions = goog.object.clone(options);
 
   delete baseOptions.style;
+  delete baseOptions.renderBuffer;
+  delete baseOptions.updateWhileAnimating;
   goog.base(this, /** @type {olx.layer.LayerOptions} */ (baseOptions));
+
+  /**
+   * @type {number}
+   * @private
+   */
+  this.renderBuffer_ = goog.isDef(options.renderBuffer) ?
+      options.renderBuffer : 100;
 
   /**
    * User provided style.
@@ -53,8 +62,23 @@ ol.layer.Vector = function(opt_options) {
 
   this.setStyle(options.style);
 
+  /**
+   * @type {boolean}
+   * @private
+   */
+  this.updateWhileAnimating_ = goog.isDef(options.updateWhileAnimating) ?
+      options.updateWhileAnimating : false;
+
 };
 goog.inherits(ol.layer.Vector, ol.layer.Layer);
+
+
+/**
+ * @return {number|undefined} Render buffer.
+ */
+ol.layer.Vector.prototype.getRenderBuffer = function() {
+  return this.renderBuffer_;
+};
 
 
 /**
@@ -65,6 +89,14 @@ ol.layer.Vector.prototype.getRenderOrder = function() {
   return /** @type {function(ol.Feature, ol.Feature):number|null|undefined} */ (
       this.get(ol.layer.VectorProperty.RENDER_ORDER));
 };
+
+
+/**
+ * @function
+ * @return {ol.source.Vector} Source.
+ * @api stable
+ */
+ol.layer.Vector.prototype.getSource;
 
 
 /**
@@ -86,6 +118,15 @@ ol.layer.Vector.prototype.getStyle = function() {
  */
 ol.layer.Vector.prototype.getStyleFunction = function() {
   return this.styleFunction_;
+};
+
+
+/**
+ * @return {boolean} Whether the rendered layer should be updated while
+ *     animating.
+ */
+ol.layer.Vector.prototype.getUpdateWhileAnimating = function() {
+  return this.updateWhileAnimating_;
 };
 
 
@@ -113,5 +154,5 @@ ol.layer.Vector.prototype.setStyle = function(style) {
   this.style_ = goog.isDef(style) ? style : ol.style.defaultStyleFunction;
   this.styleFunction_ = goog.isNull(style) ?
       undefined : ol.style.createStyleFunction(this.style_);
-  this.dispatchChangeEvent();
+  this.changed();
 };

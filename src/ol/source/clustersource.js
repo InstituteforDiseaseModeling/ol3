@@ -60,13 +60,14 @@ goog.inherits(ol.source.Cluster, ol.source.Vector);
 
 
 /**
- * @param {ol.Extent} extent
- * @param {number} resolution
+ * @inheritDoc
  */
-ol.source.Cluster.prototype.loadFeatures = function(extent, resolution) {
+ol.source.Cluster.prototype.loadFeatures = function(extent, resolution,
+    projection) {
   if (resolution !== this.resolution_) {
     this.clear();
     this.resolution_ = resolution;
+    this.source_.loadFeatures(extent, resolution, projection);
     this.cluster_();
     this.addFeatures(this.features_);
   }
@@ -81,7 +82,7 @@ ol.source.Cluster.prototype.onSourceChange_ = function() {
   this.clear();
   this.cluster_();
   this.addFeatures(this.features_);
-  this.dispatchChangeEvent();
+  this.changed();
 };
 
 
@@ -92,7 +93,7 @@ ol.source.Cluster.prototype.cluster_ = function() {
   if (!goog.isDef(this.resolution_)) {
     return;
   }
-  goog.array.clear(this.features_);
+  this.features_.length = 0;
   var extent = ol.extent.createEmpty();
   var mapDistance = this.distance_ * this.resolution_;
   var features = this.source_.getFeatures();
@@ -116,7 +117,7 @@ ol.source.Cluster.prototype.cluster_ = function() {
       neighbors = goog.array.filter(neighbors, function(neighbor) {
         var uid = goog.getUid(neighbor).toString();
         if (!goog.object.containsKey(clustered, uid)) {
-          goog.object.set(clustered, uid, true);
+          clustered[uid] = true;
           return true;
         } else {
           return false;

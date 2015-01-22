@@ -166,6 +166,21 @@ ol.Map = function(options) {
   var optionsInternal = ol.Map.createOptionsInternal(options);
 
   /**
+   * @type {boolean}
+   * @private
+   */
+  this.loadTilesWhileAnimating_ = goog.isDef(options.loadTilesWhileAnimating) ?
+      options.loadTilesWhileAnimating : false;
+
+  /**
+   * @type {boolean}
+   * @private
+   */
+  this.loadTilesWhileInteracting_ =
+      goog.isDef(options.loadTilesWhileInteracting) ?
+          options.loadTilesWhileInteracting : false;
+
+  /**
    * @private
    * @type {number}
    */
@@ -215,7 +230,7 @@ ol.Map = function(options) {
    * @private
    * @type {ol.Extent}
    */
-  this.previousExtent_ = null;
+  this.previousExtent_ = ol.extent.createEmpty();
 
   /**
    * @private
@@ -265,7 +280,6 @@ ol.Map = function(options) {
     goog.events.EventType.TOUCHSTART,
     goog.events.EventType.MSPOINTERDOWN,
     ol.MapBrowserEvent.EventType.POINTERDOWN,
-    // see https://github.com/google/closure-library/pull/308
     goog.userAgent.GECKO ? 'DOMMouseScroll' : 'mousewheel'
   ], goog.events.Event.stopPropagation);
   goog.dom.appendChild(this.viewport_, this.overlayContainerStopEvent_);
@@ -302,12 +316,6 @@ ol.Map = function(options) {
    * @private
    */
   this.controls_ = optionsInternal.controls;
-
-  /**
-   * @type {olx.DeviceOptions}
-   * @private
-   */
-  this.deviceOptions_ = optionsInternal.deviceOptions;
 
   /**
    * @type {ol.Collection.<ol.interaction.Interaction>}
@@ -495,7 +503,6 @@ ol.Map.prototype.addInteraction = function(interaction) {
  */
 ol.Map.prototype.addLayer = function(layer) {
   var layers = this.getLayerGroup().getLayers();
-  goog.asserts.assert(goog.isDef(layers));
   layers.push(layer);
 };
 
@@ -583,6 +590,34 @@ ol.Map.prototype.forEachFeatureAtPixel =
 
 
 /**
+ * Detect if features intersect a pixel on the viewport. Layers included in the
+ * detection can be configured through `opt_layerFilter`. Feature overlays will
+ * always be included in the detection.
+ * @param {ol.Pixel} pixel Pixel.
+ * @param {(function(this: U, ol.layer.Layer): boolean)=} opt_layerFilter Layer
+ *     filter function, only layers which are visible and for which this
+ *     function returns `true` will be tested for features. By default, all
+ *     visible layers will be tested. Feature overlays will always be tested.
+ * @param {U=} opt_this2 Value to use as `this` when executing `layerFilter`.
+ * @return {boolean} Is there a feature at the given pixel?
+ * @template U
+ * @api
+ */
+ol.Map.prototype.hasFeatureAtPixel =
+    function(pixel, opt_layerFilter, opt_this2) {
+  if (goog.isNull(this.frameState_)) {
+    return false;
+  }
+  var coordinate = this.getCoordinateFromPixel(pixel);
+  var layerFilter = goog.isDef(opt_layerFilter) ?
+      opt_layerFilter : goog.functions.TRUE;
+  var thisArg2 = goog.isDef(opt_this2) ? opt_this2 : null;
+  return this.renderer_.hasFeatureAtPixel(
+      coordinate, this.frameState_, layerFilter, thisArg2);
+};
+
+
+/**
  * Returns the geographical coordinate for a browser event.
  * @param {Event} event Event.
  * @return {ol.Coordinate} Coordinate.
@@ -594,7 +629,7 @@ ol.Map.prototype.getEventCoordinate = function(event) {
 
 
 /**
- * Returns the map pixel position for a browser event.
+ * Returns the map pixel position for a browser event relative to the viewport.
  * @param {Event} event Event.
  * @return {ol.Pixel} Pixel.
  * @api stable
@@ -636,6 +671,19 @@ goog.exportProperty(
     ol.Map.prototype,
     'getTarget',
     ol.Map.prototype.getTarget);
+
+
+/**
+ * Get the DOM element into which this map is rendered. In contrast to
+ * `getTarget` this method always return an `Element`, or `null` if the
+ * map has no target.
+ * @return {Element} The element that the map is rendered in.
+ * @api
+ */
+ol.Map.prototype.getTargetElement = function() {
+  var target = this.getTarget();
+  return goog.isDef(target) ? goog.dom.getElement(target) : null;
+};
 
 
 /**
@@ -703,16 +751,12 @@ goog.exportProperty(
 
 /**
  * Get the collection of layers associated with this map.
- * @return {ol.Collection.<ol.layer.Base>|undefined} Layers.
+ * @return {!ol.Collection.<ol.layer.Base>} Layers.
  * @api stable
  */
 ol.Map.prototype.getLayers = function() {
-  var layerGroup = this.getLayerGroup();
-  if (goog.isDef(layerGroup)) {
-    return layerGroup.getLayers();
-  } else {
-    return undefined;
-  }
+  var layers = this.getLayerGroup().getLayers();
+  return layers;
 };
 
 
@@ -759,7 +803,7 @@ goog.exportProperty(
 /**
  * Get the view associated with this map. A view manages properties such as
  * center and resolution.
- * @return {ol.View|undefined} The view that controls this map.
+ * @return {ol.View} The view that controls this map.
  * @observable
  * @api stable
  */
@@ -864,7 +908,10 @@ ol.Map.prototype.handleMapBrowserEvent = function(mapBrowserEvent) {
   if (this.dispatchEvent(mapBrowserEvent) !== false) {
     for (i = interactionsArray.length - 1; i >= 0; i--) {
       var interaction = interactionsArray[i];
-      var cont = interaction.handleMapBrowserEvent(mapBrowserEvent);
+      if (!interaction.getActive()) {
+        continue;
+      }
+      var cont = interaction.handleEvent(mapBrowserEvent);
       if (!cont) {
         break;
       }
@@ -896,15 +943,14 @@ ol.Map.prototype.handlePostRender = function() {
     var tileSourceCount = 0;
     if (!goog.isNull(frameState)) {
       var hints = frameState.viewHints;
-      var deviceOptions = this.deviceOptions_;
       if (hints[ol.ViewHint.ANIMATING]) {
-        maxTotalLoading = deviceOptions.loadTilesWhileAnimating === false ?
-            0 : 8;
+        maxTotalLoading = this.loadTilesWhileAnimating_ === true ?
+            8 : 0;
         maxNewLoads = 2;
       }
       if (hints[ol.ViewHint.INTERACTING]) {
-        maxTotalLoading = deviceOptions.loadTilesWhileInteracting === false ?
-            0 : 8;
+        maxTotalLoading = this.loadTilesWhileInteracting_ === true ?
+            8 : 0;
         maxNewLoads = 2;
       }
       tileSourceCount = goog.object.getCount(frameState.wantedTiles);
@@ -994,7 +1040,7 @@ ol.Map.prototype.handleViewChanged_ = function() {
     this.viewPropertyListenerKey_ = null;
   }
   var view = this.getView();
-  if (goog.isDefAndNotNull(view)) {
+  if (!goog.isNull(view)) {
     this.viewPropertyListenerKey_ = goog.events.listen(
         view, ol.ObjectEventType.PROPERTYCHANGE,
         this.handleViewPropertyChanged_, false, this);
@@ -1067,7 +1113,7 @@ ol.Map.prototype.isDef = function() {
     return false;
   }
   var view = this.getView();
-  if (!goog.isDef(view) || !view.isDef()) {
+  if (goog.isNull(view) || !view.isDef()) {
     return false;
   }
   return true;
@@ -1147,7 +1193,6 @@ ol.Map.prototype.removeInteraction = function(interaction) {
  */
 ol.Map.prototype.removeLayer = function(layer) {
   var layers = this.getLayerGroup().getLayers();
-  goog.asserts.assert(goog.isDef(layers));
   return layers.remove(layer);
 };
 
@@ -1196,7 +1241,7 @@ ol.Map.prototype.renderFrame_ = function(time) {
   /** @type {?olx.FrameState} */
   var frameState = null;
   if (goog.isDef(size) && hasArea(size) &&
-      goog.isDef(view) && view.isDef()) {
+      !goog.isNull(view) && view.isDef()) {
     var viewHints = view.getHints();
     var layerStatesArray = this.getLayerGroup().getLayerStatesArray();
     var layerStates = {};
@@ -1213,7 +1258,7 @@ ol.Map.prototype.renderFrame_ = function(time) {
       index: this.frameIndex_++,
       layerStates: layerStates,
       layerStatesArray: layerStatesArray,
-      logos: this.logos_,
+      logos: goog.object.clone(this.logos_),
       pixelRatio: this.pixelRatio_,
       pixelToCoordinateMatrix: this.pixelToCoordinateMatrix_,
       postRenderFunctions: [],
@@ -1228,17 +1273,17 @@ ol.Map.prototype.renderFrame_ = function(time) {
     });
   }
 
-  var preRenderFunctions = this.preRenderFunctions_;
-  var n = 0, preRenderFunction;
-  for (i = 0, ii = preRenderFunctions.length; i < ii; ++i) {
-    preRenderFunction = preRenderFunctions[i];
-    if (preRenderFunction(this, frameState)) {
-      preRenderFunctions[n++] = preRenderFunction;
-    }
-  }
-  preRenderFunctions.length = n;
-
   if (!goog.isNull(frameState)) {
+    var preRenderFunctions = this.preRenderFunctions_;
+    var n = 0, preRenderFunction;
+    for (i = 0, ii = preRenderFunctions.length; i < ii; ++i) {
+      preRenderFunction = preRenderFunctions[i];
+      if (preRenderFunction(this, frameState)) {
+        preRenderFunctions[n++] = preRenderFunction;
+      }
+    }
+    preRenderFunctions.length = n;
+
     frameState.extent = ol.extent.getForViewAndSize(viewState.center,
         viewState.resolution, viewState.rotation, frameState.size);
   }
@@ -1256,13 +1301,12 @@ ol.Map.prototype.renderFrame_ = function(time) {
     var idle = this.preRenderFunctions_.length === 0 &&
         !frameState.viewHints[ol.ViewHint.ANIMATING] &&
         !frameState.viewHints[ol.ViewHint.INTERACTING] &&
-        (!this.previousExtent_ ||
-            !ol.extent.equals(frameState.extent, this.previousExtent_));
+        !ol.extent.equals(frameState.extent, this.previousExtent_);
 
     if (idle) {
       this.dispatchEvent(
           new ol.MapEvent(ol.MapEventType.MOVEEND, this, frameState));
-      this.previousExtent_ = ol.extent.clone(frameState.extent);
+      ol.extent.clone(frameState.extent, this.previousExtent_);
     }
   }
 
@@ -1380,7 +1424,6 @@ ol.Map.prototype.unskipFeature = function(feature) {
 
 /**
  * @typedef {{controls: ol.Collection.<ol.control.Control>,
- *            deviceOptions: olx.DeviceOptions,
  *            interactions: ol.Collection.<ol.interaction.Interaction>,
  *            keyboardEventTarget: (Element|Document),
  *            logos: Object,
@@ -1485,7 +1528,7 @@ ol.Map.createOptionsInternal = function(options) {
   var controls;
   if (goog.isDef(options.controls)) {
     if (goog.isArray(options.controls)) {
-      controls = new ol.Collection(goog.array.clone(options.controls));
+      controls = new ol.Collection(options.controls.slice());
     } else {
       goog.asserts.assertInstanceof(options.controls, ol.Collection);
       controls = options.controls;
@@ -1494,13 +1537,10 @@ ol.Map.createOptionsInternal = function(options) {
     controls = ol.control.defaults();
   }
 
-  var deviceOptions = goog.isDef(options.deviceOptions) ?
-      options.deviceOptions : /** @type {olx.DeviceOptions} */ ({});
-
   var interactions;
   if (goog.isDef(options.interactions)) {
     if (goog.isArray(options.interactions)) {
-      interactions = new ol.Collection(goog.array.clone(options.interactions));
+      interactions = new ol.Collection(options.interactions.slice());
     } else {
       goog.asserts.assertInstanceof(options.interactions, ol.Collection);
       interactions = options.interactions;
@@ -1512,7 +1552,7 @@ ol.Map.createOptionsInternal = function(options) {
   var overlays;
   if (goog.isDef(options.overlays)) {
     if (goog.isArray(options.overlays)) {
-      overlays = new ol.Collection(goog.array.clone(options.overlays));
+      overlays = new ol.Collection(options.overlays.slice());
     } else {
       goog.asserts.assertInstanceof(options.overlays, ol.Collection);
       overlays = options.overlays;
@@ -1523,7 +1563,6 @@ ol.Map.createOptionsInternal = function(options) {
 
   return {
     controls: controls,
-    deviceOptions: deviceOptions,
     interactions: interactions,
     keyboardEventTarget: keyboardEventTarget,
     logos: logos,

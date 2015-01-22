@@ -1,7 +1,7 @@
 goog.provide('ol.geom.MultiPolygon');
 
+goog.require('goog.array');
 goog.require('goog.asserts');
-goog.require('ol.array');
 goog.require('ol.extent');
 goog.require('ol.geom.GeometryType');
 goog.require('ol.geom.MultiPoint');
@@ -14,6 +14,7 @@ goog.require('ol.geom.flat.contains');
 goog.require('ol.geom.flat.deflate');
 goog.require('ol.geom.flat.inflate');
 goog.require('ol.geom.flat.interiorpoint');
+goog.require('ol.geom.flat.intersectsextent');
 goog.require('ol.geom.flat.orient');
 goog.require('ol.geom.flat.simplify');
 
@@ -96,7 +97,7 @@ ol.geom.MultiPolygon.prototype.appendPolygon = function(polygon) {
     this.endss_.push();
   } else {
     var offset = this.flatCoordinates.length;
-    ol.array.safeExtend(this.flatCoordinates, polygon.getFlatCoordinates());
+    goog.array.extend(this.flatCoordinates, polygon.getFlatCoordinates());
     ends = polygon.getEnds().slice();
     var i, ii;
     for (i = 0, ii = ends.length; i < ii; ++i) {
@@ -104,7 +105,7 @@ ol.geom.MultiPolygon.prototype.appendPolygon = function(polygon) {
     }
   }
   this.endss_.push(ends);
-  this.dispatchChangeEvent();
+  this.changed();
 };
 
 
@@ -316,6 +317,16 @@ ol.geom.MultiPolygon.prototype.getType = function() {
 
 
 /**
+ * @inheritDoc
+ * @api
+ */
+ol.geom.MultiPolygon.prototype.intersectsExtent = function(extent) {
+  return ol.geom.flat.intersectsextent.linearRingss(
+      this.getOrientedFlatCoordinates(), 0, this.endss_, this.stride, extent);
+};
+
+
+/**
  * @param {Array.<Array.<Array.<ol.Coordinate>>>} coordinates Coordinates.
  * @param {ol.geom.GeometryLayout=} opt_layout Layout.
  * @api stable
@@ -338,7 +349,7 @@ ol.geom.MultiPolygon.prototype.setCoordinates =
       this.flatCoordinates.length = lastEnds.length === 0 ?
           0 : lastEnds[lastEnds.length - 1];
     }
-    this.dispatchChangeEvent();
+    this.changed();
   }
 };
 
@@ -360,7 +371,7 @@ ol.geom.MultiPolygon.prototype.setFlatCoordinates =
   }
   this.setFlatCoordinatesInternal(layout, flatCoordinates);
   this.endss_ = endss;
-  this.dispatchChangeEvent();
+  this.changed();
 };
 
 
@@ -386,7 +397,7 @@ ol.geom.MultiPolygon.prototype.setPolygons = function(polygons) {
     for (j = 0, jj = ends.length; j < jj; ++j) {
       ends[j] += offset;
     }
-    ol.array.safeExtend(flatCoordinates, polygon.getFlatCoordinates());
+    goog.array.extend(flatCoordinates, polygon.getFlatCoordinates());
     endss.push(ends);
   }
   this.setFlatCoordinates(layout, flatCoordinates, endss);

@@ -47,8 +47,12 @@ ol.interaction.SegmentDataType;
  */
 ol.interaction.Modify = function(options) {
 
-  goog.base(this);
-
+  goog.base(this, {
+    handleDownEvent: ol.interaction.Modify.handleDownEvent_,
+    handleDragEvent: ol.interaction.Modify.handleDragEvent_,
+    handleEvent: ol.interaction.Modify.handleEvent,
+    handleUpEvent: ol.interaction.Modify.handleUpEvent_
+  });
 
   /**
    * @type {ol.events.ConditionType}
@@ -112,7 +116,7 @@ ol.interaction.Modify = function(options) {
    * @private
    */
   this.overlay_ = new ol.FeatureOverlay({
-    style: (goog.isDef(options.style)) ? options.style :
+    style: goog.isDef(options.style) ? options.style :
         ol.interaction.Modify.getDefaultStyleFunction()
   });
 
@@ -388,9 +392,12 @@ ol.interaction.Modify.prototype.createOrUpdateVertexFeature_ =
 
 
 /**
- * @inheritDoc
+ * @param {ol.MapBrowserPointerEvent} evt Event.
+ * @return {boolean} Start drag sequence?
+ * @this {ol.interaction.Modify}
+ * @private
  */
-ol.interaction.Modify.prototype.handlePointerDown = function(evt) {
+ol.interaction.Modify.handleDownEvent_ = function(evt) {
   this.handlePointerAtPixel_(evt.pixel, evt.map);
   this.dragSegments_ = [];
   var vertexFeature = this.vertexFeature_;
@@ -400,14 +407,9 @@ ol.interaction.Modify.prototype.handlePointerDown = function(evt) {
     var vertex = geometry.getCoordinates();
     var vertexExtent = ol.extent.boundingExtent([vertex]);
     var segmentDataMatches = this.rBush_.getInExtent(vertexExtent);
-    var distinctFeatures = {};
     for (var i = 0, ii = segmentDataMatches.length; i < ii; ++i) {
       var segmentDataMatch = segmentDataMatches[i];
       var segment = segmentDataMatch.segment;
-      if (!(goog.getUid(segmentDataMatch.feature) in distinctFeatures)) {
-        var feature = segmentDataMatch.feature;
-        distinctFeatures[goog.getUid(feature)] = true;
-      }
       if (ol.coordinate.equals(segment[0], vertex)) {
         this.dragSegments_.push([segmentDataMatch, 0]);
       } else if (ol.coordinate.equals(segment[1], vertex)) {
@@ -425,9 +427,11 @@ ol.interaction.Modify.prototype.handlePointerDown = function(evt) {
 
 
 /**
- * @inheritDoc
+ * @param {ol.MapBrowserPointerEvent} evt Event.
+ * @this {ol.interaction.Modify}
+ * @private
  */
-ol.interaction.Modify.prototype.handlePointerDrag = function(evt) {
+ol.interaction.Modify.handleDragEvent_ = function(evt) {
   var vertex = evt.coordinate;
   for (var i = 0, ii = this.dragSegments_.length; i < ii; ++i) {
     var dragSegment = this.dragSegments_[i];
@@ -437,6 +441,10 @@ ol.interaction.Modify.prototype.handlePointerDrag = function(evt) {
     var coordinates = geometry.getCoordinates();
     var segment = segmentData.segment;
     var index = dragSegment[1];
+
+    while (vertex.length < geometry.getStride()) {
+      vertex.push(0);
+    }
 
     switch (geometry.getType()) {
       case ol.geom.GeometryType.POINT:
@@ -472,9 +480,12 @@ ol.interaction.Modify.prototype.handlePointerDrag = function(evt) {
 
 
 /**
- * @inheritDoc
+ * @param {ol.MapBrowserPointerEvent} evt Event.
+ * @return {boolean} Stop drag sequence?
+ * @this {ol.interaction.Modify}
+ * @private
  */
-ol.interaction.Modify.prototype.handlePointerUp = function(evt) {
+ol.interaction.Modify.handleUpEvent_ = function(evt) {
   var segmentData;
   for (var i = this.dragSegments_.length - 1; i >= 0; --i) {
     segmentData = this.dragSegments_[i][0];
@@ -486,10 +497,12 @@ ol.interaction.Modify.prototype.handlePointerUp = function(evt) {
 
 
 /**
- * @inheritDoc
+ * @param {ol.MapBrowserEvent} mapBrowserEvent Map browser event.
+ * @return {boolean} `false` to stop event propagation.
+ * @this {ol.interaction.Modify}
+ * @api
  */
-ol.interaction.Modify.prototype.handleMapBrowserEvent =
-    function(mapBrowserEvent) {
+ol.interaction.Modify.handleEvent = function(mapBrowserEvent) {
   var handled;
   if (!mapBrowserEvent.map.getView().getHints()[ol.ViewHint.INTERACTING] &&
       mapBrowserEvent.type == ol.MapBrowserEvent.EventType.POINTERMOVE) {
@@ -501,7 +514,8 @@ ol.interaction.Modify.prototype.handleMapBrowserEvent =
     goog.asserts.assertInstanceof(geometry, ol.geom.Point);
     handled = this.removeVertex_();
   }
-  return goog.base(this, 'handleMapBrowserEvent', mapBrowserEvent) && !handled;
+  return ol.interaction.Pointer.handleEvent.call(this, mapBrowserEvent) &&
+      !handled;
 };
 
 
@@ -592,6 +606,10 @@ ol.interaction.Modify.prototype.insertVertex_ = function(segmentData, vertex) {
   var depth = segmentData.depth;
   var index = segmentData.index;
   var coordinates;
+
+  while (vertex.length < geometry.getStride()) {
+    vertex.push(0);
+  }
 
   switch (geometry.getType()) {
     case ol.geom.GeometryType.MULTI_LINE_STRING:
@@ -740,12 +758,6 @@ ol.interaction.Modify.prototype.removeVertex_ = function() {
   }
   return deleted;
 };
-
-
-/**
- * @inheritDoc
- */
-ol.interaction.Modify.prototype.shouldStopEvent = goog.functions.identity;
 
 
 /**

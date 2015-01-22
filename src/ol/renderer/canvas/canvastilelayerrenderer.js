@@ -15,7 +15,6 @@ goog.require('ol.extent');
 goog.require('ol.layer.Tile');
 goog.require('ol.renderer.Map');
 goog.require('ol.renderer.canvas.Layer');
-goog.require('ol.source.Tile');
 goog.require('ol.tilecoord');
 goog.require('ol.vec.Mat4');
 
@@ -175,7 +174,6 @@ ol.renderer.canvas.TileLayer.prototype.prepareFrame =
   var tileLayer = this.getLayer();
   goog.asserts.assertInstanceof(tileLayer, ol.layer.Tile);
   var tileSource = tileLayer.getSource();
-  goog.asserts.assertInstanceof(tileSource, ol.source.Tile);
   var tileGrid = tileSource.getTileGridForProjection(projection);
   var tileGutter = tileSource.getGutter();
   var z = tileGrid.getZForResolution(viewState.resolution);
@@ -242,11 +240,6 @@ ol.renderer.canvas.TileLayer.prototype.prepareFrame =
       if (z != this.renderedCanvasZ_ ||
           !this.renderedCanvasTileRange_.containsTileRange(tileRange)) {
         this.renderedCanvasTileRange_ = null;
-        // Due to limited layer extent, we may be rendering tiles on a small
-        // portion of the canvas.
-        if (z < this.renderedCanvasZ_) {
-          this.context_.clearRect(0, 0, canvasWidth, canvasHeight);
-        }
       }
     }
   }
@@ -288,9 +281,6 @@ ol.renderer.canvas.TileLayer.prototype.prepareFrame =
       tilesToDrawByZ, getTileIfLoaded);
 
   var useInterimTilesOnError = tileLayer.getUseInterimTilesOnError();
-  if (!goog.isDef(useInterimTilesOnError)) {
-    useInterimTilesOnError = true;
-  }
 
   var tmpExtent = ol.extent.createEmpty();
   var tmpTileRange = new ol.TileRange(0, 0, 0, 0);

@@ -2,6 +2,7 @@ goog.provide('ol.DrawEvent');
 goog.provide('ol.interaction.Draw');
 
 goog.require('goog.asserts');
+goog.require('goog.events');
 goog.require('goog.events.Event');
 goog.require('ol.Collection');
 goog.require('ol.Coordinate');
@@ -10,6 +11,7 @@ goog.require('ol.FeatureOverlay');
 goog.require('ol.Map');
 goog.require('ol.MapBrowserEvent');
 goog.require('ol.MapBrowserEvent.EventType');
+goog.require('ol.Object');
 goog.require('ol.events.condition');
 goog.require('ol.geom.GeometryType');
 goog.require('ol.geom.LineString');
@@ -18,6 +20,7 @@ goog.require('ol.geom.MultiPoint');
 goog.require('ol.geom.MultiPolygon');
 goog.require('ol.geom.Point');
 goog.require('ol.geom.Polygon');
+goog.require('ol.interaction.InteractionProperty');
 goog.require('ol.interaction.Pointer');
 goog.require('ol.source.Vector');
 goog.require('ol.style.Style');
@@ -82,7 +85,11 @@ goog.inherits(ol.DrawEvent, goog.events.Event);
  */
 ol.interaction.Draw = function(options) {
 
-  goog.base(this);
+  goog.base(this, {
+    handleDownEvent: ol.interaction.Draw.handleDownEvent_,
+    handleEvent: ol.interaction.Draw.handleEvent,
+    handleUpEvent: ol.interaction.Draw.handleUpEvent_
+  });
 
   /**
    * @type {ol.Pixel}
@@ -204,6 +211,10 @@ ol.interaction.Draw = function(options) {
   this.condition_ = goog.isDef(options.condition) ?
       options.condition : ol.events.condition.noModifierKeys;
 
+  goog.events.listen(this,
+      ol.Object.getChangeEventType(ol.interaction.InteractionProperty.ACTIVE),
+      this.updateState_, false, this);
+
 };
 goog.inherits(ol.interaction.Draw, ol.interaction.Pointer);
 
@@ -223,39 +234,39 @@ ol.interaction.Draw.getDefaultStyleFunction = function() {
  * @inheritDoc
  */
 ol.interaction.Draw.prototype.setMap = function(map) {
-  if (goog.isNull(map)) {
-    // removing from a map, clean up
-    this.abortDrawing_();
-  }
-  this.overlay_.setMap(map);
   goog.base(this, 'setMap', map);
+  this.updateState_();
 };
 
 
 /**
- * @inheritDoc
+ * @param {ol.MapBrowserEvent} mapBrowserEvent Map browser event.
+ * @return {boolean} `false` to stop event propagation.
+ * @this {ol.interaction.Draw}
+ * @api
  */
-ol.interaction.Draw.prototype.handleMapBrowserEvent = function(event) {
-  var map = event.map;
+ol.interaction.Draw.handleEvent = function(mapBrowserEvent) {
+  var map = mapBrowserEvent.map;
   if (!map.isDef()) {
     return true;
   }
   var pass = true;
-  if (event.type === ol.MapBrowserEvent.EventType.POINTERMOVE) {
-    pass = this.handlePointerMove_(event);
-  } else if (event.type === ol.MapBrowserEvent.EventType.DBLCLICK) {
+  if (mapBrowserEvent.type === ol.MapBrowserEvent.EventType.POINTERMOVE) {
+    pass = this.handlePointerMove_(mapBrowserEvent);
+  } else if (mapBrowserEvent.type === ol.MapBrowserEvent.EventType.DBLCLICK) {
     pass = false;
   }
-  return (goog.base(this, 'handleMapBrowserEvent', event) && pass);
+  return ol.interaction.Pointer.handleEvent.call(this, mapBrowserEvent) && pass;
 };
 
 
 /**
- * Handle down events.
- * @param {ol.MapBrowserEvent} event A down event.
- * @return {boolean} Pass the event to other interactions.
+ * @param {ol.MapBrowserPointerEvent} event Event.
+ * @return {boolean} Start drag sequence?
+ * @this {ol.interaction.Draw}
+ * @private
  */
-ol.interaction.Draw.prototype.handlePointerDown = function(event) {
+ol.interaction.Draw.handleDownEvent_ = function(event) {
   if (this.condition_(event)) {
     this.downPx_ = event.pixel;
     return true;
@@ -266,11 +277,12 @@ ol.interaction.Draw.prototype.handlePointerDown = function(event) {
 
 
 /**
- * Handle up events.
- * @param {ol.MapBrowserEvent} event An up event.
- * @return {boolean} Pass the event to other interactions.
+ * @param {ol.MapBrowserPointerEvent} event Event.
+ * @return {boolean} Stop drag sequence?
+ * @this {ol.interaction.Draw}
+ * @private
  */
-ol.interaction.Draw.prototype.handlePointerUp = function(event) {
+ol.interaction.Draw.handleUpEvent_ = function(event) {
   var downPx = this.downPx_;
   var clickPx = event.pixel;
   var dx = downPx[0] - clickPx[0];
@@ -283,7 +295,7 @@ ol.interaction.Draw.prototype.handlePointerUp = function(event) {
       this.startDrawing_(event);
     } else if (this.mode_ === ol.interaction.DrawMode.POINT ||
         this.atFinish_(event)) {
-      this.finishDrawing_(event);
+      this.finishDrawing();
     } else {
       this.addToDrawing_(event);
     }
@@ -478,10 +490,9 @@ ol.interaction.Draw.prototype.addToDrawing_ = function(event) {
 
 /**
  * Stop drawing and add the sketch feature to the target layer.
- * @param {ol.MapBrowserEvent} event Event.
- * @private
+ * @api
  */
-ol.interaction.Draw.prototype.finishDrawing_ = function(event) {
+ol.interaction.Draw.prototype.finishDrawing = function() {
   var sketchFeature = this.abortDrawing_();
   goog.asserts.assert(!goog.isNull(sketchFeature));
   var coordinates;
@@ -544,6 +555,12 @@ ol.interaction.Draw.prototype.abortDrawing_ = function() {
 
 
 /**
+ * @inheritDoc
+ */
+ol.interaction.Draw.prototype.shouldStopEvent = goog.functions.FALSE;
+
+
+/**
  * Redraw the skecth features.
  * @private
  */
@@ -559,6 +576,19 @@ ol.interaction.Draw.prototype.updateSketchFeatures_ = function() {
     sketchFeatures.push(this.sketchPoint_);
   }
   this.overlay_.setFeatures(new ol.Collection(sketchFeatures));
+};
+
+
+/**
+ * @private
+ */
+ol.interaction.Draw.prototype.updateState_ = function() {
+  var map = this.getMap();
+  var active = this.getActive();
+  if (goog.isNull(map) || !active) {
+    this.abortDrawing_();
+  }
+  this.overlay_.setMap(active ? map : null);
 };
 
 

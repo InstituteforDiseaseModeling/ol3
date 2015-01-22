@@ -21,7 +21,6 @@ goog.require('ol.dom.BrowserFeature');
 goog.require('ol.extent');
 goog.require('ol.layer.Tile');
 goog.require('ol.renderer.dom.Layer');
-goog.require('ol.source.Tile');
 goog.require('ol.tilecoord');
 goog.require('ol.tilegrid.TileGrid');
 goog.require('ol.vec.Mat4');
@@ -78,6 +77,15 @@ goog.inherits(ol.renderer.dom.TileLayer, ol.renderer.dom.Layer);
 /**
  * @inheritDoc
  */
+ol.renderer.dom.TileLayer.prototype.clearFrame = function() {
+  goog.dom.removeChildren(this.target);
+  this.renderedRevision_ = 0;
+};
+
+
+/**
+ * @inheritDoc
+ */
 ol.renderer.dom.TileLayer.prototype.prepareFrame =
     function(frameState, layerState) {
 
@@ -96,7 +104,6 @@ ol.renderer.dom.TileLayer.prototype.prepareFrame =
   var tileLayer = this.getLayer();
   goog.asserts.assertInstanceof(tileLayer, ol.layer.Tile);
   var tileSource = tileLayer.getSource();
-  goog.asserts.assertInstanceof(tileSource, ol.source.Tile);
   var tileGrid = tileSource.getTileGridForProjection(projection);
   var tileGutter = tileSource.getGutter();
   var z = tileGrid.getZForResolution(viewState.resolution);
@@ -129,9 +136,6 @@ ol.renderer.dom.TileLayer.prototype.prepareFrame =
       tilesToDrawByZ, getTileIfLoaded);
 
   var useInterimTilesOnError = tileLayer.getUseInterimTilesOnError();
-  if (!goog.isDef(useInterimTilesOnError)) {
-    useInterimTilesOnError = true;
-  }
 
   var tmpExtent = ol.extent.createEmpty();
   var tmpTileRange = new ol.TileRange(0, 0, 0, 0);

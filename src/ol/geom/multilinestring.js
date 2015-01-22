@@ -1,7 +1,7 @@
 goog.provide('ol.geom.MultiLineString');
 
+goog.require('goog.array');
 goog.require('goog.asserts');
-goog.require('ol.array');
 goog.require('ol.extent');
 goog.require('ol.geom.GeometryType');
 goog.require('ol.geom.LineString');
@@ -10,6 +10,7 @@ goog.require('ol.geom.flat.closest');
 goog.require('ol.geom.flat.deflate');
 goog.require('ol.geom.flat.inflate');
 goog.require('ol.geom.flat.interpolate');
+goog.require('ol.geom.flat.intersectsextent');
 goog.require('ol.geom.flat.simplify');
 
 
@@ -62,11 +63,11 @@ ol.geom.MultiLineString.prototype.appendLineString = function(lineString) {
   if (goog.isNull(this.flatCoordinates)) {
     this.flatCoordinates = lineString.getFlatCoordinates().slice();
   } else {
-    ol.array.safeExtend(
+    goog.array.extend(
         this.flatCoordinates, lineString.getFlatCoordinates().slice());
   }
   this.ends_.push(this.flatCoordinates.length);
-  this.dispatchChangeEvent();
+  this.changed();
 };
 
 
@@ -120,8 +121,8 @@ ol.geom.MultiLineString.prototype.closestPointXY =
  * LineStrings.
  *
  * @param {number} m M.
- * @param {boolean=} opt_extrapolate Extrapolate.
- * @param {boolean=} opt_interpolate Interpolate.
+ * @param {boolean=} opt_extrapolate Extrapolate. Default is `false`.
+ * @param {boolean=} opt_interpolate Interpolate. Default is `false`.
  * @return {ol.Coordinate} Coordinate.
  * @api stable
  */
@@ -211,7 +212,7 @@ ol.geom.MultiLineString.prototype.getFlatMidpoints = function() {
     var end = ends[i];
     var midpoint = ol.geom.flat.interpolate.lineString(
         flatCoordinates, offset, end, stride, 0.5);
-    ol.array.safeExtend(midpoints, midpoint);
+    goog.array.extend(midpoints, midpoint);
     offset = end;
   }
   return midpoints;
@@ -245,6 +246,16 @@ ol.geom.MultiLineString.prototype.getType = function() {
 
 
 /**
+ * @inheritDoc
+ * @api
+ */
+ol.geom.MultiLineString.prototype.intersectsExtent = function(extent) {
+  return ol.geom.flat.intersectsextent.lineStrings(
+      this.flatCoordinates, 0, this.ends_, this.stride, extent);
+};
+
+
+/**
  * @param {Array.<Array.<ol.Coordinate>>} coordinates Coordinates.
  * @param {ol.geom.GeometryLayout=} opt_layout Layout.
  * @api stable
@@ -261,7 +272,7 @@ ol.geom.MultiLineString.prototype.setCoordinates =
     var ends = ol.geom.flat.deflate.coordinatess(
         this.flatCoordinates, 0, coordinates, this.stride, this.ends_);
     this.flatCoordinates.length = ends.length === 0 ? 0 : ends[ends.length - 1];
-    this.dispatchChangeEvent();
+    this.changed();
   }
 };
 
@@ -282,7 +293,7 @@ ol.geom.MultiLineString.prototype.setFlatCoordinates =
   }
   this.setFlatCoordinatesInternal(layout, flatCoordinates);
   this.ends_ = ends;
-  this.dispatchChangeEvent();
+  this.changed();
 };
 
 
@@ -302,7 +313,7 @@ ol.geom.MultiLineString.prototype.setLineStrings = function(lineStrings) {
       // FIXME better handle the case of non-matching layouts
       goog.asserts.assert(lineString.getLayout() == layout);
     }
-    ol.array.safeExtend(flatCoordinates, lineString.getFlatCoordinates());
+    goog.array.extend(flatCoordinates, lineString.getFlatCoordinates());
     ends.push(flatCoordinates.length);
   }
   this.setFlatCoordinates(layout, flatCoordinates, ends);

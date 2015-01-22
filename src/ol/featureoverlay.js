@@ -78,7 +78,7 @@ ol.FeatureOverlay = function(opt_options) {
 
   if (goog.isDef(options.features)) {
     if (goog.isArray(options.features)) {
-      this.setFeatures(new ol.Collection(goog.array.clone(options.features)));
+      this.setFeatures(new ol.Collection(options.features.slice()));
     } else {
       goog.asserts.assertInstanceof(options.features, ol.Collection);
       this.setFeatures(options.features);
@@ -176,17 +176,22 @@ ol.FeatureOverlay.prototype.handleMapPostCompose_ = function(event) {
   var frameState = event.frameState;
   var pixelRatio = frameState.pixelRatio;
   var resolution = frameState.viewState.resolution;
-  var i, ii, styles;
+  var squaredTolerance = ol.renderer.vector.getSquaredTolerance(resolution,
+      pixelRatio);
+  var i, ii, styles, featureStyleFunction;
   this.features_.forEach(function(feature) {
-    styles = styleFunction(feature, resolution);
+    featureStyleFunction = feature.getStyleFunction();
+    styles = goog.isDef(featureStyleFunction) ?
+        featureStyleFunction.call(feature, resolution) :
+        styleFunction(feature, resolution);
+
     if (!goog.isDefAndNotNull(styles)) {
       return;
     }
     ii = styles.length;
     for (i = 0; i < ii; ++i) {
       ol.renderer.vector.renderFeature(replayGroup, feature, styles[i],
-          ol.renderer.vector.getSquaredTolerance(resolution, pixelRatio),
-          feature, this.handleImageChange_, this);
+          squaredTolerance, this.handleImageChange_, this);
     }
   }, this);
 };

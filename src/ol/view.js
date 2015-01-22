@@ -77,14 +77,19 @@ ol.ViewHint = {
  * the "next" resolution. And releasing the fingers after pinch-zooming
  * snaps to the closest resolution (with an animation).
  *
- * So the *resolution constraint* snaps to specific resolutions. It is
+ * The *resolution constraint* snaps to specific resolutions. It is
  * determined by the following options: `resolutions`, `maxResolution`,
  * `maxZoom`, and `zoomFactor`. If `resolutions` is set, the other three
  * options are ignored. See documentation for each option for more
  * information.
  *
- * The *rotation constraint* is currently not configurable. It snaps the
- * rotation value to zero when approaching the horizontal.
+ * The *rotation constraint* snaps to specific angles. It is determined
+ * by the following options: `enableRotation` and `constrainRotation`.
+ * By default the rotation value is snapped to zero when approaching the
+ * horizontal.
+ *
+ * The *center constraint* is determined by the `extent` option. By
+ * default the center is not constrained at all.
  *
  * @constructor
  * @extends {ol.Object}
@@ -255,7 +260,7 @@ goog.exportProperty(
  * @return {Array.<number>} Hint.
  */
 ol.View.prototype.getHints = function() {
-  return goog.array.clone(this.hints_);
+  return this.hints_.slice();
 };
 
 
@@ -454,7 +459,7 @@ ol.View.prototype.fitExtent = function(extent, size) {
  * Take care on the map angle.
  * @param {ol.geom.SimpleGeometry} geometry Geometry.
  * @param {ol.Size} size Box pixel size.
- * @param {olx.View.fitGeometryOptions=} opt_options Options.
+ * @param {olx.view.FitGeometryOptions=} opt_options Options.
  * @api
  */
 ol.View.prototype.fitGeometry = function(geometry, size, opt_options) {

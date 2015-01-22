@@ -73,14 +73,8 @@ ol.geom.Point.prototype.getCoordinates = function() {
 /**
  * @inheritDoc
  */
-ol.geom.Point.prototype.getExtent = function(opt_extent) {
-  if (this.extentRevision != this.getRevision()) {
-    this.extent = ol.extent.createOrUpdateFromCoordinate(
-        this.flatCoordinates, this.extent);
-    this.extentRevision = this.getRevision();
-  }
-  goog.asserts.assert(goog.isDef(this.extent));
-  return ol.extent.returnOrUpdate(this.extent, opt_extent);
+ol.geom.Point.prototype.computeExtent = function(extent) {
+  return ol.extent.createOrUpdateFromCoordinate(this.flatCoordinates, extent);
 };
 
 
@@ -90,6 +84,16 @@ ol.geom.Point.prototype.getExtent = function(opt_extent) {
  */
 ol.geom.Point.prototype.getType = function() {
   return ol.geom.GeometryType.POINT;
+};
+
+
+/**
+ * @inheritDoc
+ * @api
+ */
+ol.geom.Point.prototype.intersectsExtent = function(extent) {
+  return ol.extent.containsXY(extent,
+      this.flatCoordinates[0], this.flatCoordinates[1]);
 };
 
 
@@ -108,7 +112,7 @@ ol.geom.Point.prototype.setCoordinates = function(coordinates, opt_layout) {
     }
     this.flatCoordinates.length = ol.geom.flat.deflate.coordinate(
         this.flatCoordinates, 0, coordinates, this.stride);
-    this.dispatchChangeEvent();
+    this.changed();
   }
 };
 
@@ -119,5 +123,5 @@ ol.geom.Point.prototype.setCoordinates = function(coordinates, opt_layout) {
  */
 ol.geom.Point.prototype.setFlatCoordinates = function(layout, flatCoordinates) {
   this.setFlatCoordinatesInternal(layout, flatCoordinates);
-  this.dispatchChangeEvent();
+  this.changed();
 };
